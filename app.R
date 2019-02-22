@@ -53,6 +53,8 @@ ui <- fluidPage(
 
 # Define server logic required to draw a histogram
 server <- function(input, output, session) {
+  
+  # App Instance variables
   rasterfiles <- list( 
     fertpriceraster = raster("./data/pred_fert_price1.tif"),
     maizeraster = raster("./data/pred_maize_price1.tif"),
@@ -66,40 +68,50 @@ server <- function(input, output, session) {
     UreaRtvPriRaster = "Relative UREA Prices"
     )
   
-  observeEvent(input$raster, {
+  # Modularize raster computations
+  price.raster <- reactive({
+    rasterfiles[[input$raster]]*input$price/100
+  })
+  price_abv.raster <- reactive({
+    tmpraster <- rasterfiles[[input$raster]]
+    tmpraster[tmpraster < input$price_abv] <- NA
+    tmpraster
+  })
+  maxmin <- reactive({
     minopt <- ceiling(rasterfiles[[input$raster]]@data@min)
     maxopt <- floor(rasterfiles[[input$raster]]@data@max)
-    updateSliderInput(session, "price_abv", value = NULL,
-                      min = minopt, max = maxopt, step = NULL)
+    c(minopt, maxopt)
   })
-
-   output$rasterPlot <- renderPlot({
-     plot(rasterfiles[[input$raster]]*input$price/100, main=maintitles[[input$raster]])
+  
+  # Change the input Raster
+  observeEvent(input$raster, {
+    updateSliderInput(session, "price_abv", value = NULL,
+                      min = maxmin()[1], max = maxmin()[2], step = NULL)
+  }) 
+  
+  # Plot the Rasters
+  output$rasterPlot <- renderPlot({
+     plot(price.raster(), main=maintitles[[input$raster]])
+   })
+  output$rasterPlot2 <- renderPlot({
+     plot(price_abv.raster(), main=paste0(maintitles[[input$raster]], " : Prices Above TSH", input$price_abv))
    })
    
-   output$rasterPlot2 <- renderPlot({
-     tempraster <- rasterfiles[[input$raster]]
-     tempraster[tempraster < input$price_abv] <- NA
-     plot(tempraster, main=paste0(maintitles[[input$raster]], " : Prices Above TSH", input$price_abv))
-   })
-   
-   # Downloadable Raster of selected dataset ----
-   output$downloadData1 <- downloadHandler(
+  # Download the Rasters
+  output$downloadData1 <- downloadHandler(
      filename = function() {
        paste(input$raster, input$price, as.numeric(Sys.time()), ".tif", sep = "")
      },
      content = function(file) {
-       writeRaster(rasterfiles[[input$raster]]*input$price/100, file, row.names = FALSE)
+       writeRaster(price.raster(), file, row.names = FALSE)
      }
    )
-   output$downloadData2 <- downloadHandler(
+  output$downloadData2 <- downloadHandler(
      filename = function() {
        paste(input$raster, "PriceAbove", input$price_abv, as.numeric(Sys.time()), ".tif", sep = "")
      },
      content = function(file) {
-       tempraster <- rasterfiles[[input$raster]]
-       tempraster[tempraster < input$price_abv] <- NA
-       writeRaster(tempraster, file, row.names = FALSE)
+       writeRaster(price_abv.raster(), file, row.names = FALSE)
      }
    )
    
