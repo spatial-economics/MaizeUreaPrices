@@ -9,6 +9,7 @@
 
 library(shiny)
 library(raster)
+library(rgdal)
 
 
 # Define UI for application that draws a histogram
